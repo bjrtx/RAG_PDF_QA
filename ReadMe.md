@@ -13,7 +13,7 @@ We need:
 - (Web) User interface with a prompt to easily ask questions
 
 To do so we will use:
-- LangChain to make the connection 
+- LangChain to make the connection or LLamaIndex (datas connector)?
 ![LangChain](Scheme/LangChain.png)
 
 - ChromaDB as a vector database
@@ -23,3 +23,9 @@ To do so we will use:
 - Stremalit for the web interface
 
 Maybe later we will use a local Model rather than API.
+
+## Un RAG est constitué des étapes suivantes : 
+- La création de chunks (la division du corpus de textes en sous-parties).
+- La création d’embeddings (la transformation de ces sous-parties de textes en vecteurs de valeurs numériques).
+- La création d’une base de données vectorielles (le stockage des vecteurs dans une base de données adaptée).
+- La recherche d’informations ou information retrieval (la recherche des chunks sémantiquement proches de la question posée).

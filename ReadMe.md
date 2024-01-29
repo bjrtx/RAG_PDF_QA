@@ -1,31 +1,41 @@
-This project aims to use the Mistral AI API to make a RAG application based on PDF files from ... 
-This project is based on medium : [article 1](https://medium.com/@jh.baek.sd/creating-an-ai-web-service-using-langchain-with-streamlit-using-llama-2-or-chatgpt4-83a824e19435), [article 2](https://saiharishcherukuri.medium.com/pdf-summarizer-and-question-answering-unlocking-insights-from-pdf-documents-f8933620b1c4), [article 3](https://medium.com/@karanshingde/power-your-rag-application-using-qdrantdb-mistral-8x7b-moe-langchain-and-streamlit-15cd90ad4d49).
+# RAG Application on PDF files with Mistral API, ChromaDB and llama_index
 
-What is RAG Application ? To enable the local model to also have knowledge of data outside of its training data, e.g. company or research data, you can embed this data into a vector database and let an LLM retrieve the relevant documents and data. The LLM will then construct a coherent answer with the retrieved data. It enables you to connect pre-trained models to external, up-to-date information sources that can generate more accurate and more useful outputs.
+## What is RAG Application ? 
 
-![scheme](Scheme/project_scheme.webp)
+To enable large language model to also have knowledge of data outside of its training data, e.g. company or research data, you can embed this data into a vector database and let an LLM retrieve the relevant documents and data. The LLM will then construct a coherent answer with the retrieved data. It enables you to connect pre-trained models to external, up-to-date information sources that can generate more accurate and more useful outputs.
 
-We need:
-- PDF files or others types of input data to retrieve
-- Model embedding
-- vector database to stock the data embedded
-- LLM model via API or installed on local machine
-- (Web) User interface with a prompt to easily ask questions
+## How does it works ?
 
-To do so we will use:
-- LangChain to make the connection or LLamaIndex (datas connector)?
-![LangChain](Scheme/LangChain.png)
+The first steps in this process are as follows:
+- Downloading PDFs.
+- Cutting into chunks of a given size (max token).
+- Embedding the chunks.
+- Storing the embeddings in a vector database.
+To do this, we use the `llama_index` library, which provides ready-to-use functions, and `chromaDB` vector database.
 
-- ChromaDB as a vector database
+The following steps involve the use of LLM:
+- Embedding of the question.
+- Calculation of the closest similarities between the PDF embeddings and the question one.
+- Finally, the question and the chunk are sent to the LLM to generate a response.
+To do this, we're using the `streamlit` library, which provides a user interface based on python code, and the `Mistral API` to connect to the LLM.
 
-- Mistral API for the LLM model and Embedding model
+## Requirements
 
-- Stremalit for the web interface
+The experiments were performed on a local laptop without GPU. In addition, Python version 3.10.11 and the dependencies in [requirements.txt](./requirements.txt) were used. These can be installed in a virtual environment with the following commands:
+```sh
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install upgrade pip
+pip install -r requirements.txt
+pip install -e .
+```
 
-Maybe later we will use a local Model rather than API.
+**Note**: our experiments were conducted with the exact package versions specified in `requirements.txt`. Future updates may alter reproducibility. 
 
-## Un RAG est constitué des étapes suivantes : 
-- La création de chunks (la division du corpus de textes en sous-parties).
-- La création d’embeddings (la transformation de ces sous-parties de textes en vecteurs de valeurs numériques).
-- La création d’une base de données vectorielles (le stockage des vecteurs dans une base de données adaptée).
-- La recherche d’informations ou information retrieval (la recherche des chunks sémantiquement proches de la question posée).
+## Running
+
+To use this repository, the user must copy the PDFs into the `data` folder and use the following command to execute the code: 
+```py
+streamlit run main.py
+```
+This will generate an interface for asking questions and reading answers from the LLM.

@@ -13,3 +13,6 @@ pip install llama-index
 
 # To display in App
 pip install streamlit
+
+# To make unit tests
+pip install pytest

@@ -2,7 +2,7 @@
 mistralai==0.0.11
 
 # Vector Database
-chromadb==
+chromadb==0.4.22
 pypdf==4.0.1
 
 # Standart librairies

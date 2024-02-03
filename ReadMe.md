@@ -32,10 +32,18 @@ pip install -e .
 
 **Note**: our experiments were conducted with the exact package versions specified in `requirements.txt`. Future updates may alter reproducibility. 
 
+## Unit testing
+
+To run unit tests, the user can add tests to the `test_app.py` file and run the command:
+pytest test_app.py
+```sh
+pytest test_app.py
+```
+
 ## Running
 
 To use this repository, the user must copy the PDFs into the `data` folder and use the following command to execute the code: 
-```py
+```sh
 streamlit run main.py
 ```
 This will generate an interface for asking questions and reading answers from the LLM.

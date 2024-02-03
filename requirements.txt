@@ -1,0 +1,18 @@
+# Mistral API 
+mistralai==0.0.11
+
+# Vector Database
+chromadb==0.4.22
+pypdf==4.0.1
+
+# Standart librairies
+python-dotenv==1.0.1
+
+# For QA functions 
+llama-index==0.9.39
+
+# To display in App
+streamlit==1.30.0
+
+# To make unit tests
+pytest==8.0.0

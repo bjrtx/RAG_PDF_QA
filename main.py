@@ -8,29 +8,38 @@ import streamlit as st
 import os
 
 
+load_dotenv()
+api_key = os.getenv("API_KEY")
+
+
+@st.cache_resource()
 def Mistral_llm():
-    load_dotenv()
-    api_key = os.getenv("API_KEY")
+    if not api_key:
+        raise ValueError("API key for Mistral is missing")
     model = "mistral-tiny"
     try:
         client = MistralClient(api_key=api_key)
         return model, client
     except Exception as e:
         st.error(f"Failed to initialize Mistral Client: {str(e)}")
-        return None, None
+        raise
 
 
+@st.cache_resource()
 def load_data():
     try:
         documents = SimpleDirectoryReader(input_dir="./data").load_data()
+        if not documents:
+            raise ValueError("No documents found in './data'")
         node_parser = SimpleNodeParser.from_defaults(chunk_size=5000)
         base_nodes = node_parser.get_nodes_from_documents(documents)
         return base_nodes
     except Exception as e:
         st.error(f"Error loading data: {str(e)}")
-        return []
+        raise
 
 
+@st.cache_resource()
 def vectorDB():
     try:
         chroma_client = chromadb.Client()
@@ -46,34 +55,28 @@ def vectorDB():
         return collection
     except Exception as e:
         st.error(f"Error setting up the vector database: {str(e)}")
-        return None
+        raise
 
 
 def get_answer(question_input):
     try:
         collection = vectorDB()
-        if collection is not None:
-            dbresults = collection.query(query_texts=[question_input])
-            if dbresults and dbresults.get('documents'):
-                content = dbresults.get('documents')[0][0]
-                messages = [
-                    ChatMessage(
-                        role="user",
-                        content=f"{question_input}:{content} ?")
-                        ]
-                model, client = Mistral_llm()
-                if client is not None:
-                    chat_response = client.chat(model=model, messages=messages)
-                    return chat_response.choices[0].message.content
-                else:
-                    return "Mistral Client is not initialized."
-            else:
-                return "No results found in the database."
+        dbresults = collection.query(query_texts=[question_input])
+        if dbresults and dbresults.get('documents'):
+            content = dbresults.get('documents')[0][0]
+            messages = [
+                ChatMessage(
+                    role="user",
+                    content=f"{question_input}:{content} ?")
+                    ]
+            model, client = Mistral_llm()
+            chat_response = client.chat(model=model, messages=messages)
+            return chat_response.choices[0].message.content
         else:
-            return "Vector database is not initialized."
+            return "No results found in the database."
     except Exception as e:
         st.error(f"Failed to get answer: {str(e)}")
-        return "An error occurred while processing your question."
+        raise
 
 
 def main():
@@ -88,24 +91,12 @@ def main():
         try:
             chat_response = get_answer(question_input)
             st.session_state.messages.append(
-                {
-                    "role": "user",
-                    "content": question_input
-                }
-            )
+                {"role": "user", "content": question_input})
             st.session_state.messages.append(
-                {
-                    "role": "assistant",
-                    "content": chat_response
-                }
-            )
+                {"role": "assistant", "content": chat_response})
         except Exception as e:
             st.session_state.messages.append(
-                {
-                    "role": "assistant",
-                    "content": f"Error: {str(e)}"
-                }
-            )
+                {"role": "assistant", "content": f"Error: {str(e)}"})
             st.error("Failed to process the question.")
 
     for message in st.session_state.messages:

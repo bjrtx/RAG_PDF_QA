@@ -11,22 +11,36 @@ from dotenv import load_dotenv
 import os
 from mistralai.models.chat_completion import ChatMessage
 from mistralai.client import MistralClient
+from mistralai.exceptions import MistralAPIException
 
 
-def display_pdf(uploaded_file: BytesIO):
+def display_pdf(uploaded_file: BytesIO) -> None:
     """Display uploaded PDF in streamlit."""
     # Read file as bytes:
     bytes_data = uploaded_file.getvalue()
     # Convert to utf-8
     base64_pdf = base64.b64encode(bytes_data).decode("utf-8")
     # Embed PDF in HTML
-    width = 400
+    width = 800
     pdf_display = f'<iframe src=' \
         f'"data:application/pdf;base64,{base64_pdf}#toolbar=0"' \
         f'width={str(width)} height={str(width*4/3)}' \
         'type="application/pdf"></iframe>'
     # Display file
     st.markdown(pdf_display, unsafe_allow_html=True)
+
+
+def load_PDF(uploaded_file: BytesIO) -> List:
+    """Load uploaded PDF file into one document."""
+    pdf = PdfReader(uploaded_file)
+    docs = []
+    text = ""
+    metadata = {"file_name": uploaded_file.name}
+    for page in range(len(pdf.pages)):
+        text += pdf.pages[page].extract_text()
+    docs.append(Document(metadata=metadata, text=text))
+    # if >32k tokens => hierarchical summarization
+    return docs
 
 
 @st.cache_resource()
@@ -37,7 +51,6 @@ class Embeddings():
     def parse_PDF(self) -> List[BaseNode]:
         """Parse uploaded PDF file into nodes."""
         pdf = PdfReader(self.uploaded_file)
-        st.write((pdf.pages))
         docs = []
         text = ""
         metadata = {"file_name": self.uploaded_file.name}
@@ -82,27 +95,31 @@ def Mistral_API() -> Tuple[str, MistralClient]:
 
 
 def summary(
-        nodes: List[BaseNode],
+        docs: List,
         client: MistralClient,
         model: str) -> str:
-    chunk_summary = []
-    for i, node in enumerate(nodes):
-        messages = [
-            ChatMessage(
-                role="user",
-                content=f"Make a summary of the chunk PDF number {i}:{node}")
-                ]
-        chat_response = client.chat(model=model, messages=messages)
-        chunk_summary.append(chat_response.choices[0].message.content)
     messages = [
         ChatMessage(
             role="user",
-            content=f'Make a summary of all the following PDF chunk summaries'
-                    f'{chunk_summary}'
-        )
-    ]
-    final_summary = client.chat(model=model, messages=messages)
-    return final_summary.choices[0].message.content
+            content=f"Make a summary written in the third person plural 'they'"
+            f"of the following scientific paper PDF:"
+            f"{docs[0].text} and write it in the following form: the title,"
+            f"the authors, an abstract, the main contributionn,"
+            f"the key findings, and a conclusion."
+            )
+            ]
+    try:
+        chat_response = client.chat(model=model, messages=messages)
+        return chat_response.choices[0].message.content
+    except MistralAPIException as e:
+        if e.http_status == 400:
+            st.error("File too big for the Mistral context window 32k tokens."
+                     "Please try with a smaller file.")
+            return ""
+        else:
+            error_message = f"An error occurred: {e.message}"
+            st.error(error_message)
+            return ""
 
 
 def get_answer(

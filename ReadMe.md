@@ -47,3 +47,7 @@ To use this repository, the user must copy the PDFs into the `data` folder and u
 streamlit run main.py
 ```
 This will generate an interface for asking questions and reading answers from the LLM.
+
+## To add
+To deal with bigger files:
+- Choose a model specialized in this kind of task (with a bigger context window than Mistral 32k tokens)

@@ -141,8 +141,11 @@ def get_answer(
     try:
         dbresults = collection.query(query_texts=[question_input])
         if dbresults is not None:
-            content = dbresults.get('documents')[0][0]
-            sourcename = dbresults.get('metadatas')[0][0]['source']
+            documents = dbresults.get('documents')
+            metadatas = dbresults.get('metadatas')
+            if documents and metadatas is not None:
+                content = documents[0][0]
+                sourcename = metadatas[0][0]['source']
             messages = [
                 ChatMessage(
                     role="user",

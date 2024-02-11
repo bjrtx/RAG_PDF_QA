@@ -3,8 +3,9 @@ from chromadb.api.models.Collection import Collection
 import streamlit as st
 from llama_index.node_parser import SimpleNodeParser
 from llama_index.schema import Document, BaseNode
+from llama_index import SimpleDirectoryReader
 from pypdf import PdfReader
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 from io import BytesIO
 import base64
 from dotenv import load_dotenv
@@ -12,6 +13,14 @@ import os
 from mistralai.models.chat_completion import ChatMessage
 from mistralai.client import MistralClient
 from mistralai.exceptions import MistralAPIException
+
+
+def upload_pdf() -> Optional[BytesIO]:
+    uploaded_file = st.file_uploader("Download PDF", type="pdf")
+    if uploaded_file is not None:
+        return uploaded_file
+    else:
+        return None
 
 
 def display_pdf(uploaded_file: BytesIO) -> None:
@@ -30,53 +39,55 @@ def display_pdf(uploaded_file: BytesIO) -> None:
     st.markdown(pdf_display, unsafe_allow_html=True)
 
 
+@st.cache_resource()
 def load_PDF(uploaded_file: BytesIO) -> List:
     """Load uploaded PDF file into one document."""
     pdf = PdfReader(uploaded_file)
-    docs = []
+    documents = []
     text = ""
     metadata = {"file_name": uploaded_file.name}
     for page in range(len(pdf.pages)):
         text += pdf.pages[page].extract_text()
-    docs.append(Document(metadata=metadata, text=text))
-    # if >32k tokens => hierarchical summarization
-    return docs
+    documents.append(Document(metadata=metadata, text=text))
+    return documents
 
 
 @st.cache_resource()
-class Embeddings():
-    def __init__(self, uploaded_file: BytesIO):
-        self.uploaded_file = uploaded_file
+def load_dir() -> List:
+    """Parse PDF files in the data directory into nodes."""
+    try:
+        documents = SimpleDirectoryReader(input_dir="./data").load_data()
+        if not documents:
+            raise ValueError("No documents found in './data'")
+        return documents
+    except Exception as e:
+        st.error(f"Error loading data: {str(e)}")
+        raise
 
-    def parse_PDF(self) -> List[BaseNode]:
-        """Parse uploaded PDF file into nodes."""
-        pdf = PdfReader(self.uploaded_file)
-        docs = []
-        text = ""
-        metadata = {"file_name": self.uploaded_file.name}
-        for page in range(len(pdf.pages)):
-            text += pdf.pages[page].extract_text()
-        docs.append(Document(metadata=metadata, text=text))
-        node_parser = SimpleNodeParser.from_defaults(chunk_size=5000)
-        self.nodes = node_parser.get_nodes_from_documents(docs)
-        return self.nodes
 
-    def vectorDB(self) -> Collection:
-        """Create and embed pdf in a vector database."""
-        try:
-            chroma_client = chromadb.Client()
-            collection = chroma_client.get_or_create_collection(
-                name="test",
-                metadata={"hnsw:space": "cosine"})
-            for i, node in enumerate(self.nodes):
-                collection.add(
-                    documents=[node.get_text()],
-                    metadatas=[{'source': node.metadata.get('file_name')}],
-                    ids=[f'{i}'])
-            return collection
-        except Exception as e:
-            st.error(f"Error setting up the vector database: {str(e)}")
-            raise
+def parse_PDF(documents: List) -> List[BaseNode]:
+    """Parse PDF into nodes."""
+    node_parser = SimpleNodeParser.from_defaults(chunk_size=5000)
+    nodes = node_parser.get_nodes_from_documents(documents)
+    return nodes
+
+
+def vectorDB(nodes: List[BaseNode]) -> Collection:
+    """Create and embed pdf in a vector database."""
+    try:
+        chroma_client = chromadb.Client()
+        collection = chroma_client.get_or_create_collection(
+            name="test",
+            metadata={"hnsw:space": "cosine"})
+        for i, node in enumerate(nodes):
+            collection.add(
+                documents=[node.get_text()],
+                metadatas=[{'source': node.metadata.get('file_name')}],
+                ids=[f'{i}'])
+        return collection
+    except Exception as e:
+        st.error(f"Error setting up the vector database: {str(e)}")
+        raise
 
 
 @st.cache_resource()
@@ -94,7 +105,7 @@ def Mistral_API() -> Tuple[str, MistralClient]:
         raise
 
 
-def summary(
+def get_summary(
         docs: List,
         client: MistralClient,
         model: str) -> str:
@@ -129,17 +140,27 @@ def get_answer(
         client: MistralClient) -> str:
     try:
         dbresults = collection.query(query_texts=[question_input])
-        if dbresults and dbresults.get('documents'):
+        if dbresults is not None:
             content = dbresults.get('documents')[0][0]
+            sourcename = dbresults.get('metadatas')[0][0]['source']
             messages = [
                 ChatMessage(
                     role="user",
-                    content=f"{question_input}:{content} ?")
+                    content=f"I want you to answer a question based on"
+                    f"a chunk of a retrieved file that I will give you."
+                    f"If you don't find the answer in"
+                    f" the text that I give you, answer:"
+                    f"'I don't find anything in the corresponding text'."
+                    f"First write filename:{sourcename}, then"
+                    f"Answer the question:{question_input} with the"
+                    f"text {content}."
+                    )
                     ]
             chat_response = client.chat(model=model, messages=messages)
-            return chat_response.choices[0].message.content
+            answer = chat_response.choices[0].message.content
         else:
-            return "No results found in the database."
+            answer = ""
+        return answer
     except Exception as e:
         st.error(f"Failed to get answer: {str(e)}")
         raise

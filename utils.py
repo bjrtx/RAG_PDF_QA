@@ -83,7 +83,7 @@ def vectorDB(nodes: List[BaseNode]) -> Collection:
             collection.add(
                 documents=[node.get_content()],
                 metadatas=[
-                    {'source': f'{node.get_metadata_str().split(":")[1]}'}
+                    {'source': f'{node.get_metadata_str()}'}
                     ],
                 ids=[f'{i}'])
         return collection
@@ -156,8 +156,9 @@ def get_answer(
                     f"If you don't find the answer in"
                     f" the text that I give you, answer:"
                     f"'I don't find anything in the corresponding text'."
-                    f"First write filename:{sourcename}, then"
-                    f"Answer the question:{question_input} with the"
+                    f"First write the filename from:{sourcename} and the"
+                    f"page_label (int) from:{sourcename} if there is one,"
+                    f"then Answer the question:{question_input} with the"
                     f"text {content}."
                     )
                     ]

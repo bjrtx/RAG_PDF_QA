@@ -48,7 +48,7 @@ def load_PDF(uploaded_file: BytesIO) -> List:
     metadata = {"file_name": uploaded_file.name}
     for page in range(len(pdf.pages)):
         text += pdf.pages[page].extract_text()
-    documents.append(Document(metadata=metadata, text=text))
+    documents.append(Document(text=text, extra_info=metadata))
     return documents
 
 
@@ -81,8 +81,10 @@ def vectorDB(nodes: List[BaseNode]) -> Collection:
             metadata={"hnsw:space": "cosine"})
         for i, node in enumerate(nodes):
             collection.add(
-                documents=[node.get_text()],
-                metadatas=[{'source': node.metadata.get('file_name')}],
+                documents=[node.get_content()],
+                metadatas=[
+                    {'source': f'{node.get_metadata_str().split(":")[1]}'}
+                    ],
                 ids=[f'{i}'])
         return collection
     except Exception as e:

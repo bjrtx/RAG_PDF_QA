@@ -5,7 +5,7 @@ from llama_index.node_parser import SimpleNodeParser
 from llama_index.schema import Document, BaseNode
 from llama_index import SimpleDirectoryReader
 from pypdf import PdfReader
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, Match
 from io import BytesIO
 import base64
 from dotenv import load_dotenv
@@ -14,6 +14,7 @@ from mistralai.models.chat_completion import ChatMessage
 from mistralai.client import MistralClient
 from mistralai.exceptions import MistralAPIException
 from prompts import PROMPTS
+import re
 
 
 def prepare_data_for_mistral(
@@ -77,10 +78,13 @@ def load_PDF(uploaded_file: BytesIO) -> List:
     pdf = PdfReader(uploaded_file)
     documents = []
     text = ""
-    metadata = {"file_name": uploaded_file.name}
+    filename = f"{uploaded_file.name}"
     for page in range(len(pdf.pages)):
         text += pdf.pages[page].extract_text()
-    documents.append(Document(text=text, extra_info=metadata))
+        documents.append(
+            Document(
+                text=text,
+                extra_info={'page_label': page, 'file_name': filename}))
     return documents
 
 
@@ -185,13 +189,25 @@ def get_answer(
             metadatas = dbresults.get('metadatas')
             if documents and metadatas is not None:
                 content = documents[0][0]
-                sourcename = metadatas[0][0]['source']
+                source = metadatas[0][0]['source']
+            page_number_match: Optional[Match[str]] = re.search(
+                r"page_label: (\d+)", str(source)
+                )
+            filename_match: Optional[Match[str]] = re.search(
+                r"file_name: (.+)", str(source)
+                )
+
+            page_number = (page_number_match.group(1) if page_number_match
+                           else "Unknown")
+            filename = (filename_match.group(1) if filename_match
+                        else "Unknown")
 
             prompt_template = PROMPTS[prompt_key]
             prompt = prompt_template.format(
                 question=question_input,
                 content=content,
-                sourcename=sourcename
+                filename=filename,
+                page_number=page_number
                 )
 
             messages = [ChatMessage(role="user", content=prompt)]

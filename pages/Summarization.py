@@ -2,8 +2,7 @@ import streamlit as st
 from utils import (
     upload_pdf,
     display_pdf,
-    load_PDF,
-    Mistral_API,
+    prepare_data_for_mistral,
     get_summary)
 
 
@@ -17,8 +16,10 @@ with col2:
 
 if uploaded_file is not None:
     with col1:
-        documents = load_PDF(uploaded_file)
-        model, client = Mistral_API()
+        documents, nodes, collection, model, client = prepare_data_for_mistral(
+            uploaded_file=uploaded_file,
+            include_collection=False
+            )
         resume = get_summary(documents, client, model)
         st.markdown(resume)
     with col2:

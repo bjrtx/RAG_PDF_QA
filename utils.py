@@ -15,6 +15,37 @@ from mistralai.client import MistralClient
 from mistralai.exceptions import MistralAPIException
 
 
+def prepare_data_for_mistral(
+        uploaded_file: Optional[BytesIO] = None,
+        use_dir: bool = False,
+        include_collection: bool = True
+        ) -> Tuple[
+            List[Document],
+            Optional[List[BaseNode]],
+            Optional[Collection],
+            str,
+            MistralClient
+            ]:
+    """
+    This unified method aims to prepare data to send it to the Mistral API
+    """
+    if use_dir:
+        documents = load_dir()
+    else:
+        if uploaded_file is not None:
+            documents = load_PDF(uploaded_file)
+
+    collection = None
+    nodes = None
+    if include_collection:
+        nodes = parse_PDF(documents)
+        collection = vectorDB(nodes)
+
+    model, client = Mistral_API()
+
+    return documents, nodes, collection, model, client
+
+
 def upload_pdf() -> Optional[BytesIO]:
     uploaded_file = st.file_uploader("Download PDF", type="pdf")
     if uploaded_file is not None:

@@ -54,7 +54,7 @@ def load_PDF(uploaded_file: BytesIO) -> List:
 
 @st.cache_resource()
 def load_dir() -> List:
-    """Parse PDF files in the data directory into nodes."""
+    """Load PDF files in the data directory."""
     try:
         documents = SimpleDirectoryReader(input_dir="./data").load_data()
         if not documents:
@@ -94,6 +94,7 @@ def vectorDB(nodes: List[BaseNode]) -> Collection:
 
 @st.cache_resource()
 def Mistral_API() -> Tuple[str, MistralClient]:
+    """Connect to the Mistral API"""
     load_dotenv()
     api_key = os.getenv("API_KEY")
     if not api_key:
@@ -111,6 +112,7 @@ def get_summary(
         docs: List,
         client: MistralClient,
         model: str) -> str:
+    """Receive the PDF uploaded and make a summary"""
     messages = [
         ChatMessage(
             role="user",
@@ -140,6 +142,9 @@ def get_answer(
         collection: Collection,
         model: str,
         client: MistralClient) -> str:
+    """
+    Question answering function based on Retrieved information (chunk of PDF)
+    """
     try:
         dbresults = collection.query(query_texts=[question_input])
         if dbresults is not None:

@@ -1,5 +1,5 @@
 import streamlit as st
-from utils import (
+from src.utils import (
     prepare_data_for_mistral,
     get_answer
     )

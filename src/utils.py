@@ -13,7 +13,7 @@ import os
 from mistralai.models.chat_completion import ChatMessage
 from mistralai.client import MistralClient
 from mistralai.exceptions import MistralAPIException
-from prompts import PROMPTS
+from src.prompts import PROMPTS
 import re
 
 

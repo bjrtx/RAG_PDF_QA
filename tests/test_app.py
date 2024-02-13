@@ -2,26 +2,26 @@ import pytest
 from unittest import mock
 from unittest.mock import patch, MagicMock
 from mistralai.client import MistralClient
-from main import Mistral_llm, load_data, get_answer
+from src.utils import Mistral_API, load_dir, get_answer
 
 
-def test_Mistral_llm_success():
+def test_Mistral_API_success():
     with patch('os.getenv', return_value="valid_api_key"), \
          patch('mistralai.client.MistralClient') as MockClient:
         MockClient.return_value = MockClient
-        model, client = Mistral_llm()
+        model, client = Mistral_API()
         assert model == "mistral-tiny"
         assert isinstance(client, MistralClient)
 
 
-def test_Mistral_llm():
+def test_Mistral_API():
     with mock.patch('os.getenv', return_value="fake_api_key"):
-        model, client = Mistral_llm()
+        model, client = Mistral_API()
         assert model is not None
         assert client is not None
 
 
-def test_load_data_success():
+def test_load_dir_success():
     # Simulate document objects that would be returned by
     # SimpleDirectoryReader
     mock_document1 = MagicMock(name='Document1')
@@ -34,9 +34,11 @@ def test_load_data_success():
 
     with patch('llama_index.SimpleDirectoryReader.load_data',
                return_value=[mock_document1, mock_document2]), \
-         patch('llama_index.node_parser.SimpleNodeParser.get_nodes_from_documents',
-               return_value=expected_nodes):
-        base_nodes = load_data()
+         patch(
+             'llama_index.node_parser.SimpleNodeParser.get_nodes_from_documents',
+             return_value=expected_nodes
+             ):
+        base_nodes = load_dir()
         assert len(base_nodes) == 2
         assert base_nodes[0].id == 'doc1'
         assert base_nodes[0].content == 'PDF 1 content'
@@ -44,10 +46,10 @@ def test_load_data_success():
         assert base_nodes[1].content == 'PDF 2 content'
 
 
-def test_load_data():
+def test_load_dir():
     with patch('llama_index.SimpleDirectoryReader.load_data', return_value=[]):
         with pytest.raises(ValueError) as excinfo:
-            load_data()
+            load_dir()
         assert "No documents found in './data'" in str(excinfo.value)
 
 

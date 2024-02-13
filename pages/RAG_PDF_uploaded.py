@@ -1,5 +1,5 @@
 import streamlit as st
-from utils import (
+from src.utils import (
     upload_pdf,
     display_pdf,
     prepare_data_for_mistral,

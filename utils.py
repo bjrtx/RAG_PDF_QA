@@ -13,6 +13,7 @@ import os
 from mistralai.models.chat_completion import ChatMessage
 from mistralai.client import MistralClient
 from mistralai.exceptions import MistralAPIException
+from prompts import PROMPTS
 
 
 def prepare_data_for_mistral(
@@ -172,7 +173,8 @@ def get_answer(
         question_input: str,
         collection: Collection,
         model: str,
-        client: MistralClient) -> str:
+        client: MistralClient,
+        prompt_key: str) -> str:
     """
     Question answering function based on Retrieved information (chunk of PDF)
     """
@@ -184,20 +186,15 @@ def get_answer(
             if documents and metadatas is not None:
                 content = documents[0][0]
                 sourcename = metadatas[0][0]['source']
-            messages = [
-                ChatMessage(
-                    role="user",
-                    content=f"I want you to answer a question based on"
-                    f"a chunk of a retrieved file that I will give you."
-                    f"If you don't find the answer in"
-                    f" the text that I give you, answer:"
-                    f"'I don't find anything in the corresponding text'."
-                    f"First write the filename from:{sourcename} and the"
-                    f"page_label (int) from:{sourcename} if there is one,"
-                    f"then Answer the question:{question_input} with the"
-                    f"text {content}."
-                    )
-                    ]
+
+            prompt_template = PROMPTS[prompt_key]
+            prompt = prompt_template.format(
+                question=question_input,
+                content=content,
+                sourcename=sourcename
+                )
+
+            messages = [ChatMessage(role="user", content=prompt)]
             chat_response = client.chat(model=model, messages=messages)
             answer = chat_response.choices[0].message.content
         else:

@@ -37,7 +37,8 @@ if uploaded_file is not None:
                         question_input,
                         collection,
                         model,
-                        client
+                        client,
+                        prompt_key="RAG_PDF"
                         )
                     st.session_state[f"messages_{section_key}"].append(
                         {

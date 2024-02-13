@@ -27,7 +27,8 @@ if question_input:
                 question_input,
                 collection,
                 model,
-                client
+                client,
+                prompt_key="RAG_PDFs_data"
                 )
             st.session_state[f"messages_{section_key}"].append(
                 {

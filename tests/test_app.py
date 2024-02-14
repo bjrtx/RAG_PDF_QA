@@ -2,7 +2,7 @@ import pytest
 from unittest import mock
 from unittest.mock import patch, MagicMock
 from mistralai.client import MistralClient
-from src.utils import Mistral_API, load_dir, get_answer
+from src.utils import Mistral_API, load_dir, get_answer, parse_PDF
 
 
 def test_Mistral_API_success():
@@ -14,7 +14,7 @@ def test_Mistral_API_success():
         assert isinstance(client, MistralClient)
 
 
-def test_Mistral_API():
+def test_Mistral_API_failure():
     with mock.patch('os.getenv', return_value="fake_api_key"):
         model, client = Mistral_API()
         assert model is not None
@@ -24,61 +24,60 @@ def test_Mistral_API():
 def test_load_dir_success():
     # Simulate document objects that would be returned by
     # SimpleDirectoryReader
-    mock_document1 = MagicMock(name='Document1')
-    mock_document2 = MagicMock(name='Document2')
+    mock_document1 = {"file_name": "doc1.pdf", "content": "PDF 1 content"}
+    mock_document2 = {"file_name": "doc2.pdf", "content": "PDF 2 content"}
 
-    # Simulate nodes created from PDF documents
-    mock_node1 = MagicMock(id='doc1', content='PDF 1 content')
-    mock_node2 = MagicMock(id='doc2', content='PDF 2 content')
-    expected_nodes = [mock_node1, mock_node2]
-
-    with patch('llama_index.SimpleDirectoryReader.load_data',
-               return_value=[mock_document1, mock_document2]), \
-         patch(
-             'llama_index.node_parser.SimpleNodeParser.get_nodes_from_documents',
-             return_value=expected_nodes
-             ):
-        base_nodes = load_dir()
-        assert len(base_nodes) == 2
-        assert base_nodes[0].id == 'doc1'
-        assert base_nodes[0].content == 'PDF 1 content'
-        assert base_nodes[1].id == 'doc2'
-        assert base_nodes[1].content == 'PDF 2 content'
+    with patch('src.utils.SimpleDirectoryReader.load_data',
+               return_value=[mock_document1, mock_document2]):
+        documents = load_dir()
+        assert len(documents) == 2
+        assert documents[0] == mock_document1
+        assert documents[1] == mock_document2
 
 
-def test_load_dir():
+def test_load_dir_failure():
     with patch('llama_index.SimpleDirectoryReader.load_data', return_value=[]):
         with pytest.raises(ValueError) as excinfo:
             load_dir()
         assert "No documents found in './data'" in str(excinfo.value)
 
 
+def test_parse_PDF_success():
+    mock_document1 = MagicMock()
+    mock_document2 = MagicMock()
+    documents = [mock_document1, mock_document2]
+
+    mock_node1 = MagicMock()
+    mock_node2 = MagicMock()
+    expected_nodes = [mock_node1, mock_node2]
+
+    with patch('src.utils.SimpleNodeParser.get_nodes_from_documents',
+               return_value=expected_nodes):
+        nodes = parse_PDF(documents)
+        assert len(nodes) == 2
+        assert nodes == expected_nodes
+
+
 def test_get_answer_success():
-    with patch('main.vectorDB') as mock_vectorDB, \
-         patch('main.Mistral_llm') as mock_Mistral_llm:
-        mock_vectorDB.return_value.query.return_value = {
-            "documents": [["Simulated response"]]
-        }
-        mock_MistralClient = mock.Mock()
-        mock_response = mock.Mock()
-        mock_response.choices = [mock.Mock()]
-        mock_response.choices[0].message.content = "Expected answer"
-        mock_MistralClient.chat.return_value = mock_response
-        mock_Mistral_llm.return_value = ("mistral-tiny", mock_MistralClient)
-        response = get_answer("Test question")
-        assert response == "Expected answer"
+    mock_collection = mock.MagicMock()
+    mock_model = "mistral-tiny"
+    mock_client = mock.MagicMock()
+    mock_prompt_key = "RAG_PDF"
 
+    mock_collection.query.return_value = {
+        "documents": [["Simulated response"]],
+        "metadatas": [[{"source": "source info"}]]
+    }
+    mock_response = mock.MagicMock()
+    mock_response.choices = [mock.MagicMock()]
+    mock_response.choices[0].message.content = "Expected answer"
+    mock_client.chat.return_value = mock_response
 
-def test_get_answer():
-    with mock.patch('main.vectorDB') as mock_vectorDB, \
-         mock.patch('main.Mistral_llm') as mock_Mistral_llm:
-        mock_vectorDB.return_value.query.return_value = {
-            "documents": [["Simulated response"]]
-        }
-        mock_MistralClient = mock.Mock()
-        mock_MistralClient.chat.return_value.choices = [mock.Mock()]
-        mock_MistralClient.chat.return_value.choices[0].message.content = \
-            "Simulated response"
-        mock_Mistral_llm.return_value = ("mistral-tiny", mock_MistralClient)
-        response = get_answer("Test question")
-        assert response == "Simulated response"
+    response = get_answer(
+        "Test question",
+        collection=mock_collection,
+        model=mock_model,
+        client=mock_client,
+        prompt_key=mock_prompt_key
+    )
+    assert response == "Expected answer"

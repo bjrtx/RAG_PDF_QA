@@ -48,6 +48,31 @@ streamlit run main.py
 ```
 This will generate an interface for asking questions and reading answers from the LLM.
 
+### Running on Sagemaker
+
+- Open an instance `ml.g4dn.xlarge`
+
+- Open a terminal
+```sh 
+cd SageMaker
+git clone -b "https://github.com/Argencle/RAG_PDF_QA.git"
+cd RAG_PDF_QA
+conda create -n myenv nodejs=20.9.0 -c conda-forge -y
+source /home/ec2-user/anaconda3/bin/activate myenv
+npm install -g localtunnel
+pip install -r requirements.txt
+streamlit run main.py
+```
+
+- Open another terminal 
+```sh
+source anaconda3/bin/activate myenv
+curl https://ipv4.icanhazip.com (used to obtain your public IP address)
+lt --port 8501 (enter your IP address as tunnel password) (creates a secure tunnel from the public web to an application (here streamlit) running  on a local machine on a specific port (8501))
+```
+
+*Note that the link of the streamlit application can be shared to anyone !
+
 ## To add
 To deal with bigger files:
 - Choose a model specialized in this kind of task (with a bigger context window than Mistral 32k tokens)

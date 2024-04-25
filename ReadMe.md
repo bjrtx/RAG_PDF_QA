@@ -1,27 +1,27 @@
 # RAG Application on PDF files with Mistral API, ChromaDB and llama_index
 
-## What is RAG Application ? 
+## What is RAG Application? 
 
-To enable large language model to also have knowledge of data outside of its training data, e.g. company or research data, you can embed this data into a vector database and let an LLM retrieve the relevant documents and data. The LLM will then construct a coherent answer with the retrieved data. It enables you to connect pre-trained models to external, up-to-date information sources that can generate more accurate and more useful outputs.
+To enable a large language model to also have knowledge of data outside of its training data, e.g. company or research data, you can embed this data into a vector database and let an LLM retrieve the relevant documents and data. The LLM will then construct a coherent answer with the retrieved data. It enables you to connect pre-trained models to external, up-to-date information sources that can generate more accurate and more useful outputs.
 
-## How does it works ?
+## How does it work?
 
 The first steps in this process are as follows:
 - Downloading PDFs.
-- Cutting into chunks of a given size (max token).
+- Cutting them into chunks of a given size (max token).
 - Embedding the chunks.
 - Storing the embeddings in a vector database.
 To do this, we use the `llama_index` library, which provides ready-to-use functions, and `chromaDB` vector database.
 
-The following steps involve the use of LLM:
+The following steps involve the use of an LLM:
 - Embedding of the question.
 - Calculation of the closest similarities between the PDF embeddings and the question one.
 - Finally, the question and the chunk are sent to the LLM to generate a response.
-To do this, we're using the `streamlit` library, which provides a user interface based on python code, and the `Mistral API` to connect to the LLM.
+To do this, we're using the `streamlit` library, which provides a user interface based on Python code, and the `Mistral API` to connect to the LLM.
 
 ## Requirements
 
-The experiments were performed on a local laptop without GPU. In addition, Python version 3.10.11 and the dependencies in [requirements.txt](./requirements.txt) were used. These can be installed in a virtual environment with the following commands:
+The experiments were performed locally on a GPU-less laptop. In addition, Python version 3.10.11 and the dependencies in [requirements.txt](./requirements.txt) were used. These can be installed in a virtual environment with the following commands:
 ```sh
 python -m venv .venv
 source .venv/bin/activate

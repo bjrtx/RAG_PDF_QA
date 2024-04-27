@@ -3,7 +3,7 @@ PROMPTS = {
         "I want you to answer a question based on a chunk of a retrieved file "
         "that I will give you. If you don't find the answer in the text that"
         " I give you, answer: 'I don't find anything in the corresponding "
-        "text'. First write the page number from the PDF:{page_number} if"
+        "text'. First write the page number from the PDF:{page_number} if "
         "there is one, then answer the question: {question} with the "
         "text: {content}."
     ),

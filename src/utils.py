@@ -1,3 +1,9 @@
+from typing import List, Tuple, Optional, Match
+from io import BytesIO
+import base64
+import os
+import re
+
 import chromadb
 from chromadb.api.models.Collection import Collection
 import streamlit as st
@@ -5,55 +11,44 @@ from llama_index.node_parser import SimpleNodeParser
 from llama_index.schema import Document, BaseNode
 from llama_index import SimpleDirectoryReader
 from pypdf import PdfReader
-from typing import List, Tuple, Optional, Match
-from io import BytesIO
-import base64
 from dotenv import load_dotenv
-import os
 from mistralai.models.chat_completion import ChatMessage
 from mistralai.client import MistralClient
 from mistralai.exceptions import MistralAPIException
+
 from src.prompts import PROMPTS
-import re
 
 
 def prepare_data_for_mistral(
-        uploaded_file: Optional[BytesIO] = None,
-        use_dir: bool = False,
-        include_collection: bool = True
-        ) -> Tuple[
-            List[Document],
-            Optional[List[BaseNode]],
-            Optional[Collection],
-            str,
-            MistralClient
-            ]:
+    uploaded_file: Optional[BytesIO] = None,
+    use_dir: bool = False,
+    include_collection: bool = True,
+) -> Tuple[
+    List[Document], Optional[List[BaseNode]], Optional[Collection], str, MistralClient
+]:
     """
     This unified method aims to prepare data to send it to the Mistral API
     """
     if use_dir:
         documents = load_dir()
+    elif uploaded_file is not None:
+        documents = load_pdf(uploaded_file)
     else:
-        if uploaded_file is not None:
-            documents = load_PDF(uploaded_file)
+        documents = None
 
-    collection = None
-    nodes = None
     if include_collection:
-        nodes = parse_PDF(documents)
-        collection = vectorDB(nodes)
+        nodes = parse_pdf(documents)
+        collection = vector_db(nodes)
+    else:
+        nodes = collection = None
 
-    model, client = Mistral_API()
+    model, client = mistral_api()
 
     return documents, nodes, collection, model, client
 
 
 def upload_pdf() -> Optional[BytesIO]:
-    uploaded_file = st.file_uploader("Download PDF", type="pdf")
-    if uploaded_file is not None:
-        return uploaded_file
-    else:
-        return None
+    return st.file_uploader("Upload a PDF", type="pdf")
 
 
 def display_pdf(uploaded_file: BytesIO) -> None:
@@ -64,27 +59,28 @@ def display_pdf(uploaded_file: BytesIO) -> None:
     base64_pdf = base64.b64encode(bytes_data).decode("utf-8")
     # Embed PDF in HTML
     width = 800
-    pdf_display = f'<iframe src=' \
-        f'"data:application/pdf;base64,{base64_pdf}#toolbar=0"' \
-        f'width={str(width)} height={str(width*4/3)}' \
+    pdf_display = (
+        f"<iframe src="
+        f'"data:application/pdf;base64,{base64_pdf}#toolbar=0"'
+        f"width={str(width)} height={str(width * 4 / 3)}"
         'type="application/pdf"></iframe>'
+    )
     # Display file
     st.markdown(pdf_display, unsafe_allow_html=True)
 
 
 @st.cache_resource()
-def load_PDF(uploaded_file: BytesIO) -> List:
+def load_pdf(uploaded_file: BytesIO) -> List:
     """Load uploaded PDF file into one document."""
     pdf = PdfReader(uploaded_file)
     documents = []
     text = ""
     filename = f"{uploaded_file.name}"
-    for page in range(len(pdf.pages)):
-        text += pdf.pages[page].extract_text()
+    for label, page in enumerate(pdf.pages):
+        text += page.extract_text()
         documents.append(
-            Document(
-                text=text,
-                extra_info={'page_label': page, 'file_name': filename}))
+            Document(text=text, extra_info={"page_label": label, "file_name": filename})
+        )
     return documents
 
 
@@ -101,27 +97,25 @@ def load_dir() -> List:
         raise
 
 
-def parse_PDF(documents: List) -> List[BaseNode]:
+def parse_pdf(documents: List) -> List[BaseNode]:
     """Parse PDF into nodes."""
     node_parser = SimpleNodeParser.from_defaults(chunk_size=5000)
-    nodes = node_parser.get_nodes_from_documents(documents)
-    return nodes
+    return node_parser.get_nodes_from_documents(documents)
 
 
-def vectorDB(nodes: List[BaseNode]) -> Collection:
-    """Create and embed pdf in a vector database."""
+def vector_db(nodes: List[BaseNode]) -> Collection:
+    """Create and embed PDF in a vector database."""
     try:
         chroma_client = chromadb.Client()
         collection = chroma_client.get_or_create_collection(
-            name="test",
-            metadata={"hnsw:space": "cosine"})
+            name="test", metadata={"hnsw:space": "cosine"}
+        )
         for i, node in enumerate(nodes):
             collection.add(
                 documents=[node.get_content()],
-                metadatas=[
-                    {'source': f'{node.get_metadata_str()}'}
-                    ],
-                ids=[f'{i}'])
+                metadatas=[{"source": node.get_metadata_str()}],
+                ids=[f"{i}"],
+            )
         return collection
     except Exception as e:
         st.error(f"Error setting up the vector database: {str(e)}")
@@ -129,7 +123,7 @@ def vectorDB(nodes: List[BaseNode]) -> Collection:
 
 
 @st.cache_resource()
-def Mistral_API() -> Tuple[str, MistralClient]:
+def mistral_api() -> Tuple[str, MistralClient]:
     """Connect to the Mistral API"""
     load_dotenv()
     api_key = os.getenv("API_KEY")
@@ -144,71 +138,69 @@ def Mistral_API() -> Tuple[str, MistralClient]:
         raise
 
 
-def get_summary(
-        docs: List,
-        client: MistralClient,
-        model: str) -> str:
+def get_summary(docs: List, client: MistralClient, model: str) -> str:
     """Receive the PDF uploaded and make a summary"""
     messages = [
         ChatMessage(
             role="user",
-            content=f"Make a summary written in the third person plural 'they'"
+            content=f"Make a summary written in the third person plural 'they' "
             f"of the following scientific paper PDF:"
-            f"{docs[0].text} and write it in the following form: the title,"
-            f"the authors, an abstract, the main contributionn,"
-            f"the key findings, and a conclusion."
-            )
-            ]
+            f"{docs[0].text} and write it in the following form: the title, "
+            f"the authors, an abstract, the main contribution, "
+            f"the key findings, and a conclusion.",
+        )
+    ]
     try:
         chat_response = client.chat(model=model, messages=messages)
         return chat_response.choices[0].message.content
     except MistralAPIException as e:
         if e.http_status == 400:
-            st.error("File too big for the Mistral context window 32k tokens."
-                     "Please try with a smaller file.")
-            return ""
+            st.error(
+                "File too big for the Mistral context window (32k tokens)."
+                "Please try with a smaller file."
+            )
         else:
-            error_message = f"An error occurred: {e.message}"
-            st.error(error_message)
-            return ""
+            st.error(f"An error occurred: {e.message}")
+        return ""
 
 
 def get_answer(
-        question_input: str,
-        collection: Collection,
-        model: str,
-        client: MistralClient,
-        prompt_key: str) -> str:
+    question_input: str,
+    collection: Collection,
+    model: str,
+    client: MistralClient,
+    prompt_key: str,
+) -> str:
     """
     Question answering function based on Retrieved information (chunk of PDF)
     """
     try:
-        dbresults = collection.query(query_texts=[question_input])
-        if dbresults is not None:
-            documents = dbresults.get('documents')
-            metadatas = dbresults.get('metadatas')
-            if documents and metadatas is not None:
+        db_results = collection.query(query_texts=[question_input])
+        if db_results is not None:
+            documents = db_results.get("documents")
+            metadata = db_results.get("metadatas")
+            if documents and metadata is not None:
                 content = documents[0][0]
-                source = metadatas[0][0]['source']
+                source = metadata[0][0]["source"]
+            else:
+                content = source = None
             page_number_match: Optional[Match[str]] = re.search(
                 r"page_label: (\d+)", str(source)
-                )
+            )
             filename_match: Optional[Match[str]] = re.search(
                 r"file_name: (.+)", str(source)
-                )
+            )
 
-            page_number = (page_number_match.group(1) if page_number_match
-                           else "Unknown")
-            filename = (filename_match.group(1) if filename_match
-                        else "Unknown")
+            page_number = page_number_match.group(1) if page_number_match else "Unknown"
+            filename = filename_match.group(1) if filename_match else "Unknown"
 
             prompt_template = PROMPTS[prompt_key]
             prompt = prompt_template.format(
                 question=question_input,
                 content=content,
                 filename=filename,
-                page_number=page_number
-                )
+                page_number=page_number,
+            )
 
             messages = [ChatMessage(role="user", content=prompt)]
             chat_response = client.chat(model=model, messages=messages)

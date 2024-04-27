@@ -2,21 +2,21 @@ import pytest
 from unittest import mock
 from unittest.mock import patch, MagicMock
 from mistralai.client import MistralClient
-from src.utils import Mistral_API, load_dir, get_answer, parse_PDF
+from src.utils import mistral_api, load_dir, get_answer, parse_pdf
 
 
 def test_Mistral_API_success():
     with patch('os.getenv', return_value="valid_api_key"), \
          patch('mistralai.client.MistralClient') as MockClient:
         MockClient.return_value = MockClient
-        model, client = Mistral_API()
+        model, client = mistral_api()
         assert model == "mistral-tiny"
         assert isinstance(client, MistralClient)
 
 
 def test_Mistral_API_failure():
     with mock.patch('os.getenv', return_value="fake_api_key"):
-        model, client = Mistral_API()
+        model, client = mistral_api()
         assert model is not None
         assert client is not None
 
@@ -53,7 +53,7 @@ def test_parse_PDF_success():
 
     with patch('src.utils.SimpleNodeParser.get_nodes_from_documents',
                return_value=expected_nodes):
-        nodes = parse_PDF(documents)
+        nodes = parse_pdf(documents)
         assert len(nodes) == 2
         assert nodes == expected_nodes
 

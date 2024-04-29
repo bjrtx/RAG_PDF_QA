@@ -11,7 +11,7 @@ PROMPTS = {
         "I want you to answer a question based on information retrieved across "
         "multiple PDFs. If you don't find the answer in the texts that I give "
         "you, answer: 'I don't find anything in the corresponding texts'. "
-        "First, write the source file name:{filename} and the page number "
+        "First, write the source file name: {filename} and the page number "
         "from the PDF:{page_number}, then answer the question: {question} "
         "using the relevant text: {content}."
     ),

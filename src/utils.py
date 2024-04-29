@@ -1,3 +1,4 @@
+import sys
 from typing import List, Tuple, Optional, Match
 from io import BytesIO
 import base64
@@ -19,6 +20,7 @@ from mistralai.exceptions import MistralAPIException
 from src.prompts import PROMPTS
 
 
+@st.cache_resource(show_spinner="Preparing data for Mistral...")
 def prepare_data_for_mistral(
     uploaded_file: Optional[BytesIO] = None,
     use_dir: bool = False,
@@ -32,7 +34,7 @@ def prepare_data_for_mistral(
     if use_dir:
         documents = load_dir()
     elif uploaded_file is not None:
-        documents = load_pdf(uploaded_file)
+        documents = load_doc(uploaded_file)
     else:
         documents = None
 
@@ -47,8 +49,15 @@ def prepare_data_for_mistral(
     return documents, nodes, collection, model, client
 
 
-def upload_pdf() -> Optional[BytesIO]:
-    return st.file_uploader("Upload a PDF", type="pdf")
+def upload_file() -> Optional[BytesIO]:
+    return st.file_uploader("Upload a PDF or text file", type=["pdf", "txt"])
+
+
+def display_file(file: BytesIO):
+    if file.name.endswith(".pdf"):
+        display_pdf(file)
+    elif file.name.endswith(".txt"):
+        st.text(file.read().decode())
 
 
 def display_pdf(uploaded_file: BytesIO) -> None:
@@ -62,30 +71,42 @@ def display_pdf(uploaded_file: BytesIO) -> None:
     pdf_display = (
         f"<iframe src="
         f'"data:application/pdf;base64,{base64_pdf}#toolbar=0"'
-        f"width={str(width)} height={str(width * 4 / 3)}"
+        f"width={width} height={width * 4 / 3}"
         'type="application/pdf"></iframe>'
     )
     # Display file
     st.markdown(pdf_display, unsafe_allow_html=True)
 
 
-@st.cache_resource()
+@st.cache_resource(show_spinner="Loading document")
+def load_doc(uploaded_file: BytesIO) -> List:
+    """Load uploaded file into a list of documents."""
+    if uploaded_file.name.endswith(".pdf"):
+        return load_pdf(uploaded_file)
+    elif uploaded_file.name.endswith(".txt"):
+        return [
+            Document(
+                text=uploaded_file.getvalue().decode(),
+                extra_info={"file_name": uploaded_file.name},
+            )
+        ]
+
+
+@st.cache_resource(show_spinner="Loading PDF")
 def load_pdf(uploaded_file: BytesIO) -> List:
-    """Load uploaded PDF file into one document."""
+    """Load uploaded PDF file into a list of documents."""
     pdf = PdfReader(uploaded_file)
-    documents = []
-    text = ""
-    filename = f"{uploaded_file.name}"
-    for label, page in enumerate(pdf.pages):
-        text += page.extract_text()
-        documents.append(
-            Document(text=text, extra_info={"page_label": label, "file_name": filename})
+    return [
+        Document(
+            text=page.extract_text(),
+            extra_info={"page_label": label, "file_name": uploaded_file.name},
         )
-    return documents
+        for label, page in enumerate(pdf.pages)
+    ]
 
 
-@st.cache_resource()
-def load_dir() -> List:
+@st.cache_resource(show_spinner="Loading ./data directory, if it exists")
+def load_dir() -> List[Document]:
     """Load PDF files in the data directory."""
     try:
         documents = SimpleDirectoryReader(input_dir="./data").load_data()
@@ -106,16 +127,14 @@ def parse_pdf(documents: List) -> List[BaseNode]:
 def vector_db(nodes: List[BaseNode]) -> Collection:
     """Create and embed PDF in a vector database."""
     try:
-        chroma_client = chromadb.Client()
-        collection = chroma_client.get_or_create_collection(
+        collection = chromadb.Client().get_or_create_collection(
             name="test", metadata={"hnsw:space": "cosine"}
         )
-        for i, node in enumerate(nodes):
-            collection.add(
-                documents=[node.get_content()],
-                metadatas=[{"source": node.get_metadata_str()}],
-                ids=[f"{i}"],
-            )
+        collection.add(
+            ids=[str(i) for i in range(len(nodes))],
+            documents=[node.get_content() for node in nodes],
+            metadatas=[{"source": node.get_metadata_str()} for node in nodes],
+        )
         return collection
     except Exception as e:
         st.error(f"Error setting up the vector database: {str(e)}")
@@ -131,23 +150,22 @@ def mistral_api() -> Tuple[str, MistralClient]:
         raise ValueError("API key for Mistral is missing")
     model = "mistral-tiny"
     try:
-        client = MistralClient(api_key=api_key)
-        return model, client
+        return model, MistralClient(api_key=api_key)
     except Exception as e:
         st.error(f"Failed to initialize Mistral Client: {str(e)}")
         raise
 
 
 def get_summary(docs: List, client: MistralClient, model: str) -> str:
-    """Receive the PDF uploaded and make a summary"""
+    """Receive the uploaded file and make a summary"""
     messages = [
         ChatMessage(
             role="user",
-            content=f"Make a summary written in the third person plural 'they' "
-            f"of the following scientific paper PDF:"
-            f"{docs[0].text} and write it in the following form: the title, "
-            f"the authors, an abstract, the main contribution, "
-            f"the key findings, and a conclusion.",
+            content=f"Summarize the following document in the third person plural 'they'. "
+            f"Write your summary as follows: the title, the authors, an abstract, the main contribution, "
+            f"the key findings, and a conclusion. Finally, tell me if the document is a scientific paper, "
+            f"or some other kind of text."
+            f" Document follows: {docs[0].text}"
         )
     ]
     try:
@@ -156,7 +174,7 @@ def get_summary(docs: List, client: MistralClient, model: str) -> str:
     except MistralAPIException as e:
         if e.http_status == 400:
             st.error(
-                "File too big for the Mistral context window (32k tokens)."
+                "File too big for the Mistral context window (32k tokens). "
                 "Please try with a smaller file."
             )
         else:

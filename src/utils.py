@@ -1,28 +1,29 @@
-import sys
-from typing import List, Tuple, Optional, Match
-from io import BytesIO
 import base64
+import itertools
 import os
+import pathlib
 import re
+from io import BytesIO
+from typing import List, Tuple, Optional, Match
 
 import chromadb
-from chromadb.api.models.Collection import Collection
 import streamlit as st
+from chromadb.api.models.Collection import Collection
+from dotenv import load_dotenv
+from llama_index import SimpleDirectoryReader
 from llama_index.node_parser import SimpleNodeParser
 from llama_index.schema import Document, BaseNode
-from llama_index import SimpleDirectoryReader
-from pypdf import PdfReader
-from dotenv import load_dotenv
-from mistralai.models.chat_completion import ChatMessage
 from mistralai.client import MistralClient
 from mistralai.exceptions import MistralAPIException
+from mistralai.models.chat_completion import ChatMessage
+from pypdf import PdfReader
 
 from src.prompts import PROMPTS
 
 
-@st.cache_resource(show_spinner="Preparing data for Mistral...")
+@st.cache_resource()
 def prepare_data_for_mistral(
-    uploaded_file: Optional[BytesIO] = None,
+    uploaded_file: Optional[BytesIO | list[BytesIO]] = None,
     use_dir: bool = False,
     include_collection: bool = True,
 ) -> Tuple[
@@ -34,7 +35,11 @@ def prepare_data_for_mistral(
     if use_dir:
         documents = load_dir()
     elif uploaded_file is not None:
-        documents = load_doc(uploaded_file)
+        if isinstance(uploaded_file, list):
+            # todo improve
+            documents = list(itertools.chain.from_iterable(load_doc(file) for file in uploaded_file))
+        else:
+            documents = load_doc(uploaded_file)
     else:
         documents = None
 
@@ -49,15 +54,18 @@ def prepare_data_for_mistral(
     return documents, nodes, collection, model, client
 
 
-def upload_file() -> Optional[BytesIO]:
-    return st.file_uploader("Upload a PDF or text file", type=["pdf", "txt"])
+def upload_files() -> Optional[list[BytesIO]]:
+    return st.file_uploader("Upload one or more files", type=["pdf", "txt"], accept_multiple_files=True)
 
 
 def display_file(file: BytesIO):
-    if file.name.endswith(".pdf"):
-        display_pdf(file)
-    elif file.name.endswith(".txt"):
-        st.text(file.read().decode())
+    match pathlib.Path(file.name).suffix:
+        case ".pdf":
+            display_pdf(file)
+        case ".txt":
+            st.text(file.read().decode())
+        case _:
+            st.error('Unsupported file extension')
 
 
 def display_pdf(uploaded_file: BytesIO) -> None:
@@ -81,27 +89,27 @@ def display_pdf(uploaded_file: BytesIO) -> None:
 @st.cache_resource(show_spinner="Loading document")
 def load_doc(uploaded_file: BytesIO) -> List:
     """Load uploaded file into a list of documents."""
-    if uploaded_file.name.endswith(".pdf"):
-        return load_pdf(uploaded_file)
-    elif uploaded_file.name.endswith(".txt"):
-        return [
-            Document(
-                text=uploaded_file.getvalue().decode(),
-                extra_info={"file_name": uploaded_file.name},
-            )
-        ]
+    match pathlib.Path(uploaded_file.name).suffix:
+        case ".pdf":
+            return load_pdf(uploaded_file)
+        case ".txt":
+            return [
+                Document(
+                    text=uploaded_file.getvalue().decode(),
+                    extra_info={"file_name": uploaded_file.name},
+                )
+            ]
 
 
 @st.cache_resource(show_spinner="Loading PDF")
 def load_pdf(uploaded_file: BytesIO) -> List:
     """Load uploaded PDF file into a list of documents."""
-    pdf = PdfReader(uploaded_file)
     return [
         Document(
             text=page.extract_text(),
             extra_info={"page_label": label, "file_name": uploaded_file.name},
         )
-        for label, page in enumerate(pdf.pages)
+        for label, page in enumerate(PdfReader(uploaded_file).pages)
     ]
 
 
@@ -165,7 +173,7 @@ def get_summary(docs: List, client: MistralClient, model: str) -> str:
             f"Write your summary as follows: the title, the authors, an abstract, the main contribution, "
             f"the key findings, and a conclusion. Finally, tell me if the document is a scientific paper, "
             f"or some other kind of text."
-            f" Document follows: {docs[0].text}"
+            f" Document follows: {docs[0].text}",
         )
     ]
     try:

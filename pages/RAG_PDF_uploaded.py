@@ -1,6 +1,6 @@
 import streamlit as st
 
-from src.utils import upload_file, display_pdf, prepare_data_for_mistral, get_answer, display_file
+from src.utils import upload_files, prepare_data_for_mistral, get_answer, display_file
 
 st.set_page_config(layout="wide")
 st.title("Document question answering")
@@ -8,9 +8,9 @@ st.title("Document question answering")
 col1, col2 = st.columns(2)
 
 with col2:
-    uploaded_file = upload_file()
+    uploaded_files = upload_files()
 
-if uploaded_file is not None:
+for uploaded_file in uploaded_files:
     with col1:
         documents, nodes, collection, model, client = prepare_data_for_mistral(
             uploaded_file=uploaded_file
